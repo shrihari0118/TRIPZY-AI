@@ -4,6 +4,27 @@ import Dashboard from './pages/Dashboard';
 import Translator from './pages/Translator';
 import BudgetPlanner from './pages/BudgetPlanner';
 import TravelGuide from './pages/TravelGuide';
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
+import Dashboard from "./pages/Dashboard";
+
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+function AnimatedRoutes() {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+
+      </Routes>
+    </AnimatePresence>
+  );
+}
 
 function App() {
   return (
@@ -16,6 +37,7 @@ function App() {
           <Route path="guide" element={<TravelGuide />} />
         </Route>
       </Routes>
+      <AnimatedRoutes />
     </BrowserRouter>
   );
 }

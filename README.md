@@ -1,1 +1,5 @@
 AI-powered-travel-companion
+
+
+passlib==1.7.4
+bcrypt==4.0.1

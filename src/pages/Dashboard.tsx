@@ -2,6 +2,22 @@ import { Link } from 'react-router-dom';
 import { Languages, DollarSign, MapPin, ArrowRight } from 'lucide-react';
 
 export default function Dashboard() {
+import { useEffect } from 'react';
+import { Languages, DollarSign, MapPin, ArrowRight } from 'lucide-react';
+
+export default function Dashboard() {
+    useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/";
+    }
+  }, []);
+const handleLogout = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("name");
+  window.location.href = "/";
+};
+
   const features = [
     {
       title: 'Speech Translator',
@@ -32,6 +48,18 @@ export default function Dashboard() {
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
           Welcome to Your Intelligent Travel Assistant
         </h1>
+      <div className="relative text-center mb-12">
+<button
+  onClick={handleLogout}
+  className="absolute right-0 top-0 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+>
+  Logout
+</button>
+
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+  Welcome {localStorage.getItem("name")} to Your Intelligent Travel Assistant
+</h1>
+
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           Your all-in-one solution for smart travel planning. Translate languages on the go,
           plan your budget, and get expert travel guidance powered by AI.
