@@ -5,11 +5,12 @@ export default function Navigation() {
   const location = useLocation();
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: Home },
-    { path: '/translate', label: 'Translator', icon: Languages },
-    { path: '/budget', label: 'Budget Planner', icon: DollarSign },
-    { path: '/guide', label: 'Smart Guide', icon: MapPin },
-  ];
+  { path: '/dashboard', label: 'Dashboard', icon: Home },
+  { path: '/dashboard/translate', label: 'Translator', icon: Languages },
+  { path: '/dashboard/budget', label: 'Budget Planner', icon: DollarSign },
+  { path: '/dashboard/guide', label: 'Smart Guide', icon: MapPin },
+];
+
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
