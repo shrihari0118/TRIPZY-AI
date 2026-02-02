@@ -82,18 +82,18 @@ const startListening = () => {
     setTranslatedText("");
   };
 
-  // ✅ Browser stopped listening (auto OR manual)
+  //  Browser stopped listening (auto OR manual)
   recognition.onend = () => {
     setListening(false);
   };
 
-  // ✅ Speech captured
+  //  Speech captured
   recognition.onresult = (event: any) => {
     const transcript = event.results[0][0].transcript;
     setText(transcript);
     translateText(transcript);
 
-    // 🔥 Stop immediately after capturing speech
+    // Stop immediately after capturing speech
     recognition.stop();
   };
 
