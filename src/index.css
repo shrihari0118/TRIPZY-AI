@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    color-scheme: light;
+    --canvas: #f4f6fb;
+    --panel: #ffffff;
+    --panel-muted: #f8fafc;
+    --ink: #0f172a;
+    --muted: #556070;
+    --border: #e2e8f0;
+    --accent: #0f766e;
+    --accent-strong: #115e59;
+    --accent-soft: #ccfbf1;
+    --glow: #34d399;
+  }
+
+  body {
+    background:
+      radial-gradient(
+        1200px circle at 10% -10%,
+        rgba(16, 185, 129, 0.16),
+        transparent 55%
+      ),
+      radial-gradient(
+        1000px circle at 90% 0%,
+        rgba(14, 116, 144, 0.12),
+        transparent 50%
+      ),
+      var(--canvas);
+    color: var(--ink);
+    font-family: "Space Grotesk", sans-serif;
+  }
+}
+
 /* ---------------------- */
 /* Custom Animations */
 /* ---------------------- */

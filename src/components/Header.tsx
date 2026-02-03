@@ -1,30 +1,62 @@
-import { Globe, Settings } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Compass, LogOut } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function Header() {
+  const location = useLocation();
+  const navItems = [
+    {
+      path: '/translator',
+      label: 'Translator',
+      activePaths: ['/translator', '/dashboard/translate'],
+    },
+    {
+      path: '/budget',
+      label: 'Budget Planner',
+      activePaths: ['/budget', '/dashboard/budget'],
+    },
+    { path: '/profile', label: 'Profile', activePaths: ['/profile'] },
+  ];
+
   return (
-    <header className="bg-white shadow-sm border-b border-gray-200">
+    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--panel)]/90 backdrop-blur">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <Link to="/" className="flex items-center space-x-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <Globe className="w-6 h-6 text-white" />
+        <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <Link to="/dashboard" className="flex items-center space-x-3">
+            <div className="rounded-2xl bg-[var(--accent)] p-2.5 shadow-sm">
+              <Compass className="h-6 w-6 text-white" />
             </div>
-            <h1 className="text-xl font-semibold text-gray-900">
-              Intelligent Travel Assistant
-            </h1>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                TripPilot AI
+              </p>
+              <h1 className="text-lg font-semibold text-[var(--ink)]">
+                Intelligent Travel Planner
+              </h1>
+            </div>
           </Link>
 
-          <div className="flex items-center space-x-4">
-            <select className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="en">English</option>
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ja">Japanese</option>
-            </select>
-            <button className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-              <Settings className="w-5 h-5" />
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+            <nav className="flex flex-wrap items-center gap-2">
+              {navItems.map((item) => {
+                const isActive = item.activePaths.includes(location.pathname);
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'border-transparent bg-[var(--accent-soft)] text-[var(--accent-strong)] shadow-sm'
+                        : 'border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <button className="inline-flex items-center gap-2 rounded-full border border-transparent bg-[var(--ink)] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-900">
+              <LogOut className="h-4 w-4" />
+              Logout
             </button>
           </div>
         </div>
