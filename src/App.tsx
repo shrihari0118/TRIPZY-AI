@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 
 import Layout from "./components/Layout";
+
 import Dashboard from "./pages/Dashboard";
 import Translator from "./pages/Translator";
 import BudgetPlanner from "./pages/BudgetPlanner";
@@ -10,6 +11,9 @@ import Profile from "./pages/Profile";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+
+// ✅ IMPORT CHATBOT
+import Chatbot from "./components/chatbot";
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -22,7 +26,7 @@ function AnimatedRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* App Pages */}
+        {/* App Pages with Layout */}
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/translate" element={<Translator />} />
@@ -42,6 +46,9 @@ function App() {
   return (
     <BrowserRouter>
       <AnimatedRoutes />
+
+      {/* ✅ CHATBOT – AVAILABLE ON ALL PAGES */}
+      <Chatbot />
     </BrowserRouter>
   );
 }
