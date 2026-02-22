@@ -1,11 +1,17 @@
+import type { AllocationRatios } from '../components/BudgetAllocationSliders';
+
 export type BudgetPlanId = 'budget' | 'moderate' | 'luxury';
+
 
 export type PlanCustomization = {
   transport: string;
   accommodation: string;
   food: string;
   activities: string[];
+  /** User-adjusted budget split ratios. Undefined = AI defaults still in use. */
+  ratios?: AllocationRatios;
 };
+
 
 export type BudgetPlan = {
   id: BudgetPlanId;

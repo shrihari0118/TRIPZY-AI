@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import GoogleSignInButton from "../components/GoogleSignInButton";
 
 
 
@@ -10,65 +11,65 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
 
-  try {
-    const res = await fetch("http://localhost:8000/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+      const res = await fetch("http://localhost:8000/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email, password })
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      setError(data.detail || "Login failed");
-      return;
+      if (!res.ok) {
+        setError(data.detail || "Login failed");
+        return;
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("name", data.name);
+
+      window.location.href = "/dashboard";
+
+    } catch {
+      setError("Server error. Try again later.");
     }
+  };
 
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("name", data.name);
+  const images = [
+    "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
+    "https://images.unsplash.com/photo-1470770903676-69b98201ea1c",
+    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+  ];
 
-    window.location.href = "/dashboard";
+  const [currentImage, setCurrentImage] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentImage((prev) => (prev + 1) % images.length);
+    }, 4000); // 4 seconds
 
-  } catch {
-    setError("Server error. Try again later.");
-  }
-};
-
-const images = [
-  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee",
-  "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
-  "https://images.unsplash.com/photo-1470770903676-69b98201ea1c",
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-];
-
-const [currentImage, setCurrentImage] = useState(0);
-useEffect(() => {
-  const interval = setInterval(() => {
-    setCurrentImage((prev) => (prev + 1) % images.length);
-  }, 4000); // 4 seconds
-
-  return () => clearInterval(interval);
-}, []);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-  // 🌄 Full Background
-  <motion.div
-initial={{ opacity: 0, y: 40 }}
-animate={{ opacity: 1, y: 0 }}
-exit={{ opacity: 0, y: -40 }}
-    transition={{ duration: 0.4 }}
-    className="min-h-screen flex items-center justify-center bg-cover bg-center px-4"
-    style={{
-      backgroundImage:
-        "url(https://images.unsplash.com/photo-1500530855697-b586d89ba3ee)",
-    }}
-  >
+    // 🌄 Full Background
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -40 }}
+      transition={{ duration: 0.4 }}
+      className="min-h-screen flex items-center justify-center bg-cover bg-center px-4"
+      style={{
+        backgroundImage:
+          "url(https://images.unsplash.com/photo-1500530855697-b586d89ba3ee)",
+      }}
+    >
 
       {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/40"></div>
@@ -111,9 +112,9 @@ exit={{ opacity: 0, y: -40 }}
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
-{error && (
- <p className="text-red-500 text-sm text-center animate-pulse">{error}</p>
-)}
+            {error && (
+              <p className="text-red-500 text-sm text-center animate-pulse">{error}</p>
+            )}
 
             <button
               type="submit"
@@ -124,6 +125,16 @@ exit={{ opacity: 0, y: -40 }}
             </button>
           </form>
 
+          {/* Divider */}
+          <div className="flex items-center my-5">
+            <div className="flex-1 border-t border-gray-300"></div>
+            <span className="px-3 text-sm text-gray-400">or</span>
+            <div className="flex-1 border-t border-gray-300"></div>
+          </div>
+
+          {/* Google Sign-In */}
+          <GoogleSignInButton onError={(msg) => setError(msg)} />
+
           <p className="text-center mt-6 text-gray-600">
             Don't have an account?{" "}
             <Link to="/register" className="text-blue-600 font-semibold">
@@ -133,53 +144,53 @@ exit={{ opacity: 0, y: -40 }}
         </div>
 
         {/* RIGHT - INFO PANEL */}
-<div
-  className="hidden md:flex flex-col justify-center p-10 text-white
+        <div
+          className="hidden md:flex flex-col justify-center p-10 text-white
   animate-slide-fade relative overflow-hidden"
->
+        >
 
-  {/* Sliding Images */}
-<div className="absolute inset-0 overflow-hidden">
+          {/* Sliding Images */}
+          <div className="absolute inset-0 overflow-hidden">
 
-  <div
-    className="flex w-full h-full transition-transform duration-1000 ease-in-out"
-    style={{
-      transform: `translateX(-${currentImage * 100}%)`,
-    }}
-  >
-    {images.map((img, index) => (
-      <div
-        key={index}
-        className="min-w-full h-full bg-cover bg-center"
-        style={{ backgroundImage: `url(${img})` }}
-      ></div>
-    ))}
-  </div>
+            <div
+              className="flex w-full h-full transition-transform duration-1000 ease-in-out"
+              style={{
+                transform: `translateX(-${currentImage * 100}%)`,
+              }}
+            >
+              {images.map((img, index) => (
+                <div
+                  key={index}
+                  className="min-w-full h-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${img})` }}
+                ></div>
+              ))}
+            </div>
 
-</div>
+          </div>
 
 
-  {/* Gradient Overlay */}
-  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/70 to-green-400/70"></div>
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/70 to-green-400/70"></div>
 
-  {/* Content */}
-  <div className="relative animate-float">
-    <h2 className="text-3xl font-bold mb-4">
-      AI Travel Companion
-    </h2>
+          {/* Content */}
+          <div className="relative animate-float">
+            <h2 className="text-3xl font-bold mb-4">
+              AI Travel Companion
+            </h2>
 
-    <p className="text-lg leading-relaxed max-w-sm">
-      Smart guidance, expense tracking, and seamless exploration.
-    </p>
-  </div>
+            <p className="text-lg leading-relaxed max-w-sm">
+              Smart guidance, expense tracking, and seamless exploration.
+            </p>
+          </div>
 
-</div>
+        </div>
 
 
 
       </div>
-</motion.div>
-);
+    </motion.div>
+  );
 };
 
 export default Login;

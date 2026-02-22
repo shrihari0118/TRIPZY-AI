@@ -1,6 +1,10 @@
 import { Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BudgetPlan, PlanCustomization } from '../data/budgetPlans';
+import BudgetAllocationSliders, {
+  AllocationRatios,
+  DEFAULT_RATIOS,
+} from './BudgetAllocationSliders';
 
 type PersonalizeModalProps = {
   isOpen: boolean;
@@ -21,6 +25,21 @@ export default function PersonalizeModal({
   const [activities, setActivities] = useState<string[]>([]);
   const [activityInput, setActivityInput] = useState('');
 
+  // ── Ratio slider state ─────────────────────────────────────────────────────
+  const [ratios, setRatios] = useState<AllocationRatios | null>(null);
+
+  // ── Body scroll-lock ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!plan) {
       return;
@@ -30,6 +49,8 @@ export default function PersonalizeModal({
     setFood(plan.food);
     setActivities(plan.activities);
     setActivityInput('');
+    // Reset ratios to AI defaults for this tier each time the modal opens
+    setRatios(null);
   }, [plan]);
 
   const activityOptions = useMemo(() => {
@@ -42,6 +63,9 @@ export default function PersonalizeModal({
   if (!isOpen || !plan) {
     return null;
   }
+
+  // Effective ratios: user override or tier default
+  const effectiveRatios: AllocationRatios = ratios ?? DEFAULT_RATIOS[plan.id];
 
   const toggleActivity = (activity: string) => {
     setActivities((prev) =>
@@ -64,7 +88,7 @@ export default function PersonalizeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-sm">
-      <div className="relative h-full w-full max-w-md bg-[var(--panel)] shadow-2xl animate-slide-fade">
+      <div className="relative flex h-full w-full max-w-md flex-col bg-[var(--panel)] shadow-2xl animate-slide-fade">
         <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-5">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -82,7 +106,7 @@ export default function PersonalizeModal({
           </button>
         </div>
 
-        <div className="space-y-6 overflow-y-auto px-6 py-6">
+        <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
           <div className="space-y-2 text-sm">
             <label className="font-semibold text-[var(--ink)]">
               Transport Type
@@ -185,6 +209,14 @@ export default function PersonalizeModal({
               </div>
             )}
           </div>
+
+          {/* ── Budget Allocation Sliders ──────────────────────────────────── */}
+          <BudgetAllocationSliders
+            tier={plan.id}
+            costRange={plan.costRange}
+            ratios={effectiveRatios}
+            onChange={(newRatios) => setRatios(newRatios)}
+          />
         </div>
 
         <div className="border-t border-[var(--border)] px-6 py-4">
@@ -202,6 +234,8 @@ export default function PersonalizeModal({
                   accommodation,
                   food,
                   activities,
+                  // Only persist ratios when the user actually changed them
+                  ratios: ratios ?? undefined,
                 })
               }
               className="flex-1 rounded-xl bg-[var(--ink)] px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-900"
