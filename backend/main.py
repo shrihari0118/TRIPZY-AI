@@ -40,3 +40,7 @@ def translate_text(request: TranslationRequest):
 #done by sadhana
 from auth import router as auth_router
 app.include_router(auth_router)
+
+# Budget Planner AI module — mounted at /v1/budget
+from budget_planner.routes.budget_routes import router as budget_router
+app.include_router(budget_router, prefix="/v1/budget", tags=["Budget Planner"])
