@@ -1,6 +1,6 @@
 import { RefreshCw, Sparkles, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
-import BudgetCard from '../components/BudgetCard';
+import { useNavigate } from 'react-router-dom';
 import BudgetForm, { BudgetFormValues } from '../components/BudgetForm';
 import PersonalizeModal from '../components/PersonalizeModal';
 import {
@@ -42,8 +42,8 @@ function formatINR(n: number): string {
 }
 
 export default function BudgetPlanner() {
+  const navigate = useNavigate();
   const [values, setValues] = useState<BudgetFormValues>(initialValues);
-  const [hasGenerated, setHasGenerated] = useState(false);
   const [customizations, setCustomizations] = useState<
     Partial<Record<BudgetPlanId, PlanCustomization>>
   >({});
@@ -86,22 +86,6 @@ export default function BudgetPlanner() {
       }),
     [plans, customizations]
   );
-
-  const orderedPlans = useMemo(() => {
-    if (!hasGenerated) {
-      return resolvedPlans;
-    }
-    const selected = resolvedPlans.find(
-      (plan) => plan.id === values.budgetRange
-    );
-    if (!selected) {
-      return resolvedPlans;
-    }
-    const others = resolvedPlans.filter(
-      (plan) => plan.id !== values.budgetRange
-    );
-    return [selected, ...others];
-  }, [hasGenerated, resolvedPlans, values.budgetRange]);
 
   const activePlan = activePlanId
     ? resolvedPlans.find((plan) => plan.id === activePlanId) ?? null
@@ -162,6 +146,19 @@ export default function BudgetPlanner() {
       setPlans(patchedPlans);
       setRequestId(response.requestId);
       setLastUpdatedAt(response.lastUpdatedAt);
+
+      navigate('/pricing', {
+        state: {
+          plans: patchedPlans,
+          tripSummary: {
+            values,
+            adults,
+            children,
+          },
+        },
+      });
+
+      return;
     } catch (err) {
       console.error('[BudgetPlanner] generateBudgetPlan failed:', err);
       // Try to parse a structured backend error for MAX_BUDGET_TOO_LOW
@@ -179,9 +176,8 @@ export default function BudgetPlanner() {
       }
     } finally {
       setIsLoading(false);
-      setHasGenerated(true);
     }
-  }, [isLoading, values, adults, children, maxBudget]);
+  }, [isLoading, values, adults, children, maxBudget, navigate]);
 
   const handleRefresh = useCallback(async () => {
     if (isLoading || !requestId) return;
@@ -411,7 +407,7 @@ export default function BudgetPlanner() {
                   {selectedBudgetTitle}
                 </p>
               </div>
-              {hasGenerated && requestId && (
+              {requestId && (
                 <div className="flex items-center gap-2">
                   {lastUpdatedAt && (
                     <span className="text-xs text-[var(--muted)]">
@@ -433,29 +429,9 @@ export default function BudgetPlanner() {
           </div>
         </section>
 
-        {hasGenerated ? (
-          <section className="grid gap-6 lg:grid-cols-3">
-            {orderedPlans.map((plan, index) => (
-              <div
-                key={plan.id}
-                className="animate-slide-fade"
-                style={{ animationDelay: `${index * 120}ms` }}
-              >
-                <BudgetCard
-                  plan={plan}
-                  isSelected={plan.id === values.budgetRange}
-                  onPersonalize={() => setActivePlanId(plan.id)}
-                  ratios={customizations[plan.id]?.ratios}
-                />
-              </div>
-            ))}
-          </section>
-        ) : (
-          <section className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--panel-muted)] p-8 text-center text-sm text-[var(--muted)]">
-            Generate your trip plan to see three budget-ready options appear
-            here.
-          </section>
-        )}
+        <section className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--panel-muted)] p-8 text-center text-sm text-[var(--muted)]">
+          Generate your trip plan to view pricing options on the dedicated page.
+        </section>
       </div>
 
       <PersonalizeModal

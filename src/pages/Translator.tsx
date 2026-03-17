@@ -7,8 +7,6 @@ const [listening, setListening] = useState<boolean>(false);
 const [speechLanguage, setSpeechLanguage] = useState("en-US");
 const [translatedText, setTranslatedText] = useState("");
 const [targetLanguage, setTargetLanguage] = useState("en");
-const [isSpeaking, setIsSpeaking] = useState(false);
-
 
 const speakText = (text: string) => {
 
@@ -18,9 +16,7 @@ const speakText = (text: string) => {
   }
     window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = targetLanguage; 
-  utterance.onstart = () => setIsSpeaking(true);
-  utterance.onend = () => setIsSpeaking(false);
+  utterance.lang = targetLanguage;
   // automatically matches translation language
   window.speechSynthesis.speak(utterance);
 };

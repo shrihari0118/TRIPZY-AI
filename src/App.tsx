@@ -8,6 +8,8 @@ import Translator from "./pages/Translator";
 import BudgetPlanner from "./pages/BudgetPlanner";
 import TravelGuide from "./pages/TravelGuide";
 import Profile from "./pages/Profile";
+import PricingPage from "./pages/PricingPage";
+import PlanDetailsPage from "./pages/PlanDetailsPage";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -36,6 +38,8 @@ function AnimatedRoutes() {
           <Route path="/translator" element={<Translator />} />
           <Route path="/budget" element={<BudgetPlanner />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/plan-details" element={<PlanDetailsPage />} />
         </Route>
       </Routes>
     </AnimatePresence>
