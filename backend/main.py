@@ -19,6 +19,7 @@ PROJECT_ROOT = BACKEND_DIR.parent
 
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 load_dotenv(BACKEND_DIR / ".env", override=False)
+print("GEMINI KEY:", os.getenv("GEMINI_API_KEY"))
 
 from auth import router as auth_router
 from database import db
@@ -35,7 +36,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 RESULT_KEYS = [
     "total_budget",
     "transport",
@@ -357,6 +358,9 @@ def call_gemini(prompt: str) -> str:
     }
 
     try:
+        print("\n🚀 Calling Gemini API...")
+        print("URL:", GEMINI_URL)
+
         response = requests.post(
             GEMINI_URL,
             headers={
@@ -366,19 +370,33 @@ def call_gemini(prompt: str) -> str:
             json=payload,
             timeout=60,
         )
-        response.raise_for_status()
 
-        # 🔥 IMPORTANT: print actual error
+        # 🔥 IMPORTANT DEBUG LOGS
+        print("✅ STATUS CODE:", response.status_code)
+        print("📦 RAW RESPONSE:", response.text)
+
+        response.raise_for_status()
 
         response_data = response.json()
 
-        # 🔥 Handle Gemini error response properly
         return response_data["candidates"][0]["content"]["parts"][0]["text"]
 
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail="Gemini API request failed.") from exc
-    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=502, detail="Invalid Gemini API response.") from exc
+        print("❌ REQUEST ERROR:", str(exc))
+        print("❌ RESPONSE TEXT:", response.text if 'response' in locals() else "No response")
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini API request failed: {response.text if 'response' in locals() else str(exc)}"
+        )
+
+    except Exception as exc:
+        print("❌ PARSE ERROR:", str(exc))
+
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini parsing failed: {str(exc)}"
+        )
 
 
 def generate_itinerary(trip: TripRequest, distance_km: float) -> dict[str, Any]:
