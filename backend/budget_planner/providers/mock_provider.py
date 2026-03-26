@@ -137,6 +137,21 @@ class MockPlanProvider(BasePlanProvider):
             return self._SAME_CITY_SPOTS
         return self._SPOTS[tier]
 
+    def get_transport_budget_range(
+        self,
+        tier: BudgetTier,
+        *,
+        source_city: str,
+        destination_city: str,
+    ) -> dict[str, int] | None:
+        """Fallback static ranges when MongoDB has no data for this route."""
+        _FALLBACK_RANGES: dict[str, dict[str, int]] = {
+            "budget":   {"min": 3_000,  "max": 5_000},
+            "moderate": {"min": 8_000,  "max": 15_000},
+            "luxury":   {"min": 20_000, "max": 50_000},
+        }
+        return _FALLBACK_RANGES.get(tier)
+
     def get_plan_title(self, tier: BudgetTier) -> str:
         return self._TITLES[tier]
 

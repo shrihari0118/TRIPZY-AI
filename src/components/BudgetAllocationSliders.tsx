@@ -11,7 +11,9 @@
  *  • Shows "AI Recommended Allocation" / "Customized Allocation" badge.
  */
 
-import { BudgetPlanId } from '../data/budgetPlans';
+import type { BudgetTier } from '../api/budgetPlanner';
+
+type BudgetPlanId = BudgetTier;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 

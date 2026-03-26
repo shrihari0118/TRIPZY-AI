@@ -2,34 +2,51 @@ import type { AllocationRatios } from '../components/BudgetAllocationSliders';
 
 export type BudgetPlanId = 'budget' | 'moderate' | 'luxury';
 
+export type TransportOption = {
+  type: string;
+  name: string;
+  route: string;
+  departure: string;
+  arrival: string;
+  price: number;
+};
 
 export type PlanCustomization = {
-  transport: string;
+  transport: TransportOption;
   accommodation: string;
   food: string;
   activities: string[];
-  /** User-adjusted budget split ratios. Undefined = AI defaults still in use. */
   ratios?: AllocationRatios;
 };
-
 
 export type BudgetPlan = {
   id: BudgetPlanId;
   title: string;
   description: string;
   costRange: string;
-  transport: string;
+  transport: TransportOption;
   accommodation: string;
   food: string;
   spots: string;
   activities: string[];
   options: {
-    transport: string[];
+    transport: TransportOption[];
     accommodation: string[];
     food: string[];
     activities: string[];
   };
 };
+
+function t(type: string, name: string): TransportOption {
+  return {
+    type,
+    name,
+    route: '',
+    departure: '',
+    arrival: '',
+    price: 0,
+  };
+}
 
 export const budgetPlans: BudgetPlan[] = [
   {
@@ -37,7 +54,7 @@ export const budgetPlans: BudgetPlan[] = [
     title: 'Budget-Friendly',
     description: 'Student-first trips focused on essentials and discovery.',
     costRange: '\u20B99,000 - \u20B914,000',
-    transport: 'AC Sleeper Bus',
+    transport: t('bus', 'AC Sleeper Bus'),
     accommodation: 'Hostel dorm',
     food: 'Street food',
     spots: 'Heritage lanes, ghats, free museums',
@@ -48,7 +65,12 @@ export const budgetPlans: BudgetPlan[] = [
       'Budget city tour',
     ],
     options: {
-      transport: ['Non-AC Bus', 'AC Sleeper Bus', '3A Train', '2S Train'],
+      transport: [
+        t('bus', 'Non-AC Bus'),
+        t('bus', 'AC Sleeper Bus'),
+        t('train', '3A Train'),
+        t('train', '2S Train'),
+      ],
       accommodation: ['Hostel dorm', '2-star hotel', 'Homestay'],
       food: ['Street food', 'Local thali', 'Canteen meals'],
       activities: [
@@ -66,7 +88,7 @@ export const budgetPlans: BudgetPlan[] = [
     title: 'Moderate',
     description: 'Balanced comfort with curated city highlights.',
     costRange: '\u20B918,000 - \u20B926,000',
-    transport: 'AC Chair Car',
+    transport: t('train', 'AC Chair Car'),
     accommodation: '3-star hotel',
     food: 'Regional specials',
     spots: 'Top landmarks, guided city walk',
@@ -78,10 +100,10 @@ export const budgetPlans: BudgetPlan[] = [
     ],
     options: {
       transport: [
-        'AC Chair Car',
-        '3A Train',
-        'Economy Flight',
-        'Semi-sleeper Bus',
+        t('train', 'AC Chair Car'),
+        t('train', '3A Train'),
+        t('flight', 'Economy Flight'),
+        t('bus', 'Semi-sleeper Bus'),
       ],
       accommodation: ['3-star hotel', 'Boutique stay', 'Serviced apartment'],
       food: ['Regional specials', 'Cafe combos', 'Mix of street + cafes'],
@@ -100,7 +122,7 @@ export const budgetPlans: BudgetPlan[] = [
     title: 'Luxury',
     description: 'Premium stays and private experiences throughout.',
     costRange: '\u20B938,000 - \u20B955,000',
-    transport: 'Business Flight',
+    transport: t('flight', 'Business Flight'),
     accommodation: '5-star resort',
     food: 'Chef tasting menu',
     spots: 'Private sunrise tours, premium viewpoints',
@@ -112,9 +134,9 @@ export const budgetPlans: BudgetPlan[] = [
     ],
     options: {
       transport: [
-        'Business Flight',
-        'Premium train cabin',
-        'Private SUV transfer',
+        t('flight', 'Business Flight'),
+        t('train', 'Premium train cabin'),
+        t('other', 'Private SUV transfer'),
       ],
       accommodation: [
         '5-star resort',
@@ -133,3 +155,4 @@ export const budgetPlans: BudgetPlan[] = [
     },
   },
 ];
+

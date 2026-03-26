@@ -16,7 +16,7 @@ export default function Footer() {
           </a>
         </div>
         <div className="text-center mt-4 text-xs text-slate-500">
-          &copy; 2026 TripPilot AI. All rights reserved.
+          &copy; 2026 Tripzy AI. All rights reserved.
         </div>
       </div>
     </footer>

@@ -17,13 +17,6 @@ type BudgetOption = {
   description: string;
 };
 
-// Tier limits used by the max-budget slider
-const TIER_LIMITS: Record<BudgetPlanId, { min: number; max: number }> = {
-  budget: { min: 3_000, max: 5_000 },
-  moderate: { min: 8_000, max: 15_000 },
-  luxury: { min: 20_000, max: 50_000 },
-};
-
 type BudgetFormProps = {
   values: BudgetFormValues;
   options: BudgetOption[];
@@ -38,6 +31,8 @@ type BudgetFormProps = {
   sliderError?: string | null;
   /** When true, the Generate button is disabled even if isLoading is false */
   generateDisabled?: boolean;
+  /** Dynamic tier limits from the GET /v1/budget/range API. Overrides static fallback. */
+  dynamicTierLimits?: { min: number; max: number } | null;
 };
 
 export default function BudgetForm({
@@ -51,8 +46,10 @@ export default function BudgetForm({
   onMaxBudgetChange,
   sliderError = null,
   generateDisabled = false,
+  dynamicTierLimits = null,
 }: BudgetFormProps) {
-  const tierLimits = TIER_LIMITS[values.budgetRange];
+  // Dynamic limits from API; safe inline fallback if parent hasn't loaded yet
+  const tierLimits = dynamicTierLimits ?? { min: 0, max: 100_000 };
   return (
     <section className="rounded-3xl border border-[var(--border)] bg-[var(--panel)] p-6 shadow-sm md:p-8">
       <div className="flex flex-col gap-3">
@@ -63,8 +60,8 @@ export default function BudgetForm({
           Build your travel budget in minutes
         </h1>
         <p className="max-w-2xl text-[var(--muted)]">
-          Share your route, dates, and comfort level. The AI-ready budget
-          planner drafts three clear plans you can personalize instantly.
+          Share your route, dates, and comfort level. The planner builds a
+          dynamic itinerary with transport, stay, food, places, and experiences.
         </p>
       </div>
 

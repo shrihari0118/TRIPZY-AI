@@ -9,41 +9,49 @@ from uuid import uuid4
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from budget_planner.models.budget_request import RefreshRequest, TripRequest, _TIER_MIN_LIMITS
+from budget_planner.models.budget_request import RefreshRequest, TripRequest
 from budget_planner.models.budget_response import (
     BudgetGenerateResponse,
+    BudgetRangeResponse,
+    BudgetRangesResponse,
     BudgetRefreshResponse,
     ErrorDetail,
     ErrorResponse,
+    SliderRange,
 )
 from budget_planner.repository import budget_repository
 from budget_planner.services import budget_generator
+from budget_planner.services.budget_engine import calculate_budget_ranges
 from budget_planner.utils.validators import BudgetValidationError, validate_trip_request
 
 
-def _check_max_budget_floor(budget_range: str, max_budget: int | None) -> None:
+def handle_range(
+    source_city: str,
+    destination_city: str,
+    days: int,
+) -> BudgetRangesResponse:
     """
-    Raise HTTPException(400) with code MAX_BUDGET_TOO_LOW if the user's
-    selected maxBudget is lower than the tier's minimum allowed cost.
+    Compute total trip budget ranges for all 3 tiers using the Dynamic
+    Budget Engine (transport + accommodation + food + activity + spots).
     """
-    if max_budget is None:
-        return
-    tier_min = _TIER_MIN_LIMITS[budget_range]
-    if max_budget < tier_min:
+    if days < 1:
         raise HTTPException(
             status_code=400,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code="MAX_BUDGET_TOO_LOW",
-                    message=(
-                        f"maxBudget \u20b9{max_budget:,} is below the minimum required for the "
-                        f"'{budget_range}' tier (\u20b9{tier_min:,}). "
-                        "Please raise your max budget or choose a lower tier."
-                    ),
-                    details={"maxBudget": max_budget, "tierMin": tier_min, "tier": budget_range},
+                    code="INVALID_DAYS",
+                    message="days must be at least 1.",
                 )
             ).model_dump(),
         )
+
+    data = calculate_budget_ranges(source_city, destination_city, days)
+    # Convert raw dicts to SliderRange models
+    budget_ranges = {
+        tier: SliderRange(min=vals["min"], max=vals["max"])
+        for tier, vals in data["budget_ranges"].items()
+    }
+    return BudgetRangesResponse(budget_ranges=budget_ranges)
 
 
 def handle_generate(trip_request: TripRequest) -> BudgetGenerateResponse:
@@ -76,8 +84,8 @@ def handle_generate(trip_request: TripRequest) -> BudgetGenerateResponse:
             ).model_dump(),
         )
 
-    # Step 1b: Max-budget floor check
-    _check_max_budget_floor(trip_request.budgetRange, trip_request.maxBudget)
+    # NOTE: Hardcoded max-budget floor check has been removed.
+    # Budget limits are now dynamically derived from GET /v1/budget/range.
 
     # Step 2: Generate plans
     request_id = uuid4()
@@ -170,8 +178,7 @@ def handle_refresh(refresh_request: RefreshRequest) -> BudgetRefreshResponse:
             ).model_dump(),
         )
 
-    # Step 2b: Max-budget floor check
-    _check_max_budget_floor(refresh_request.budgetRange, refresh_request.maxBudget)
+    # NOTE: Hardcoded max-budget floor check has been removed.
 
     # Step 3: Refresh plans
     try:

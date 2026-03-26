@@ -1,72 +1,88 @@
-/**
- * budgetPlanner.ts
- * Typed API client for POST /v1/budget/generate and POST /v1/budget/refresh.
- * Base URL is read from VITE_API_BASE_URL (defaults to http://localhost:8000).
- * Step A: adults and children added to TripRequest and TripSummary.
- */
-
-import { BudgetPlan } from '../data/budgetPlans';
-
-// ── Base URL ──────────────────────────────────────────────────────────────────
+export type BudgetTier = 'budget' | 'moderate' | 'luxury';
 
 const BASE_URL =
     (import.meta.env.VITE_API_BASE_URL as string | undefined) ??
     'http://localhost:8000';
 
-// ── Request Types ─────────────────────────────────────────────────────────────
-
 export type TripRequest = {
-    startPlace: string;
-    destinationPlace: string;
-    startDate: string;       // "YYYY-MM-DD"
-    endDate: string;       // "YYYY-MM-DD"
-    budgetRange: 'budget' | 'moderate' | 'luxury';
-    adults?: number;       // optional; backend defaults to 1
-    children?: number;       // optional; backend defaults to 0
-    /** User-selected max budget cap (INR). Optional; if omitted system default applies. */
-    maxBudget?: number;
-    /** @deprecated Do not use. Replaced by adults + children. */
-    numPeople?: never;
-};
-
-export type RefreshRequest = TripRequest & {
-    requestId: string;              // UUID string from /generate response
-};
-
-// ── Response Types ────────────────────────────────────────────────────────────
-
-export type TripSummary = {
     startPlace: string;
     destinationPlace: string;
     startDate: string;
     endDate: string;
-    durationDays: number;
-    selectedBudgetRange: 'budget' | 'moderate' | 'luxury';
-    adults: number;    // echoed from backend
-    children: number;    // echoed from backend
+    budgetRange: BudgetTier;
+    adults?: number;
+    children?: number;
+};
+
+export type TotalBudget = {
+    min: number;
+    max: number;
+};
+
+export type TransportPlan = {
+    mode: string;
+    name: string;
+};
+
+export type HotelPlan = {
+    name: string;
+    type: string;
+};
+
+export type TripPlanResult = {
+    total_budget: TotalBudget;
+    transport: TransportPlan;
+    hotel: HotelPlan;
+    food: string[];
+    tourist_places: string[];
+    activities: string[];
+    entertainment: string[];
 };
 
 export type BudgetGenerateResponse = {
-    requestId: string;
-    lastUpdatedAt: string;          // ISO datetime string
-    trip_summary: TripSummary;
-    plans: BudgetPlan[];    // exactly 3 items: budget, moderate, luxury
+    user_id: string | null;
+    source: string;
+    destination: string;
+    days: number;
+    adults: number;
+    children: number;
+    budget_type: BudgetTier;
+    distance_km: number;
+    result: TripPlanResult;
+    created_at: string;
 };
 
 export type BudgetRefreshResponse = BudgetGenerateResponse;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+type BackendTripRequest = {
+    source: string;
+    destination: string;
+    days: number;
+    adults: number;
+    children: number;
+    budget_type: BudgetTier;
+};
 
-async function post<T>(path: string, body: unknown): Promise<T> {
+function getAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+
+    if (token) {
+        headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
+}
+
+async function postBackend<T>(path: string, body: unknown): Promise<T> {
     const res = await fetch(`${BASE_URL}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
     });
 
     if (!res.ok) {
         const text = await res.text().catch(() => res.statusText);
-        // Log the full FastAPI validation detail so 422 bodies are visible in console
         console.error(
             `[budgetPlanner] API error ${res.status} ${res.url}\n`,
             (() => { try { return JSON.parse(text); } catch { return text; } })()
@@ -77,16 +93,43 @@ async function post<T>(path: string, body: unknown): Promise<T> {
     return res.json() as Promise<T>;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+function calculateDays(startDate: string, endDate: string): number {
+    if (!startDate || !endDate) {
+        return 1;
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+    return Math.max(1, diff);
+}
+
+function toBackendTripRequest(payload: TripRequest): BackendTripRequest {
+    return {
+        source: payload.startPlace.trim(),
+        destination: payload.destinationPlace.trim(),
+        days: calculateDays(payload.startDate, payload.endDate),
+        adults: Number(payload.adults ?? 1),
+        children: Number(payload.children ?? 0),
+        budget_type: payload.budgetRange,
+    };
+}
 
 export async function generateBudgetPlan(
     payload: TripRequest
 ): Promise<BudgetGenerateResponse> {
-    return post<BudgetGenerateResponse>('/v1/budget/generate', payload);
+    return postBackend<BudgetGenerateResponse>(
+        '/generate-trip',
+        toBackendTripRequest(payload)
+    );
 }
 
 export async function refreshBudgetPlan(
-    payload: RefreshRequest
+    payload: TripRequest
 ): Promise<BudgetRefreshResponse> {
-    return post<BudgetRefreshResponse>('/v1/budget/refresh', payload);
+    return postBackend<BudgetRefreshResponse>(
+        '/generate-trip',
+        toBackendTripRequest(payload)
+    );
 }

@@ -15,9 +15,10 @@ from budget_planner.models.budget_entities import BudgetTier
 
 _MAX_TRAVELLERS = 10
 
-# Per-tier allowed max-budget limits (INR) — mirrors TIER_LIMITS in BudgetForm.tsx
-_TIER_MIN_LIMITS: dict[str, int] = {"budget": 3_000,  "moderate": 8_000,  "luxury": 20_000}
-_TIER_MAX_LIMITS: dict[str, int] = {"budget": 5_000,  "moderate": 15_000, "luxury": 50_000}
+# NOTE: Hardcoded _TIER_MIN_LIMITS and _TIER_MAX_LIMITS have been removed.
+# Budget ranges are now derived dynamically from the transport_datas collection
+# via GET /v1/budget/range.  The maxBudget field is still validated as a
+# positive integer; route-specific bounds are enforced by the frontend slider.
 
 
 class TripRequest(BaseModel):
@@ -73,17 +74,9 @@ class TripRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_max_budget(self) -> "TripRequest":
-        """If maxBudget is provided, ensure it falls within the selected tier's allowed range."""
-        if self.maxBudget is None:
-            return self
-        tier = str(self.budgetRange)
-        lo = _TIER_MIN_LIMITS[tier]
-        hi = _TIER_MAX_LIMITS[tier]
-        if not (lo <= self.maxBudget <= hi):
-            raise ValueError(
-                f"maxBudget ₹{self.maxBudget:,} is outside the allowed range for "
-                f"the '{tier}' tier (₹{lo:,} – ₹{hi:,})."
-            )
+        """If maxBudget is provided, ensure it is a positive number."""
+        if self.maxBudget is not None and self.maxBudget <= 0:
+            raise ValueError("maxBudget must be a positive number.")
         return self
 
 
@@ -140,15 +133,7 @@ class RefreshRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_max_budget(self) -> "RefreshRequest":
-        """If maxBudget is provided, ensure it falls within the selected tier's allowed range."""
-        if self.maxBudget is None:
-            return self
-        tier = str(self.budgetRange)
-        lo = _TIER_MIN_LIMITS[tier]
-        hi = _TIER_MAX_LIMITS[tier]
-        if not (lo <= self.maxBudget <= hi):
-            raise ValueError(
-                f"maxBudget ₹{self.maxBudget:,} is outside the allowed range for "
-                f"the '{tier}' tier (₹{lo:,} – ₹{hi:,})."
-            )
+        """If maxBudget is provided, ensure it is a positive number."""
+        if self.maxBudget is not None and self.maxBudget <= 0:
+            raise ValueError("maxBudget must be a positive number.")
         return self

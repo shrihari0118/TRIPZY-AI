@@ -38,6 +38,25 @@ class BudgetRefreshResponse(BaseModel):
 
 # ── Error Models ───────────────────────────────────────────────────────────────
 
+
+# ── Budget Range Models ────────────────────────────────────────────────────────
+
+class SliderRange(BaseModel):
+    min: int
+    max: int
+
+
+class BudgetRangeResponse(BaseModel):
+    """Legacy response for single-tier range queries."""
+    budget_category: str
+    slider_range: SliderRange
+
+
+class BudgetRangesResponse(BaseModel):
+    """Response for GET /v1/budget/range — all 3 tiers at once."""
+    budget_ranges: dict[str, SliderRange]
+
+
 class ErrorDetail(BaseModel):
     code: str
     message: str

@@ -10,9 +10,16 @@ import os
 
 load_dotenv()
 
+router = APIRouter()
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
-router = APIRouter()
+if not GOOGLE_CLIENT_ID:
+    raise Exception("GOOGLE_CLIENT_ID not found in environment variables")
+
+# ---------------------------------------------------
+# AUTH TEST
+# ---------------------------------------------------
 
 @router.get("/auth-test")
 def auth_test():
@@ -22,11 +29,15 @@ def auth_test():
         "users_count": count
     }
 
+# ---------------------------------------------------
 # REGISTER
+# ---------------------------------------------------
+
 @router.post("/register")
 def register(user: UserRegister):
 
     existing_user = users_collection.find_one({"email": user.email})
+
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -41,11 +52,15 @@ def register(user: UserRegister):
 
     return {"message": "User registered successfully"}
 
+# ---------------------------------------------------
 # LOGIN
+# ---------------------------------------------------
+
 @router.post("/login")
 def login(user: UserLogin):
 
     db_user = users_collection.find_one({"email": user.email})
+
     if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -63,17 +78,26 @@ def login(user: UserLogin):
         "name": db_user["name"]
     }
 
-# GOOGLE SIGN-IN
+# ---------------------------------------------------
+# GOOGLE SIGN IN
+# ---------------------------------------------------
+
 @router.post("/auth/google")
 def google_auth(payload: GoogleAuthRequest):
+
     try:
         idinfo = google_id_token.verify_oauth2_token(
             payload.id_token,
             google_requests.Request(),
-            GOOGLE_CLIENT_ID,
+            GOOGLE_CLIENT_ID
         )
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+        # Ensure token issued for this client
+        if idinfo["aud"] != GOOGLE_CLIENT_ID:
+            raise HTTPException(status_code=401, detail="Invalid audience")
+
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Google token: {str(e)}")
 
     email = idinfo.get("email")
     name = idinfo.get("name", "")
@@ -83,29 +107,52 @@ def google_auth(payload: GoogleAuthRequest):
     if not email:
         raise HTTPException(status_code=400, detail="Google account has no email")
 
-    # Look up by email or google_id
+    # ---------------------------------------------------
+    # FIND EXISTING USER
+    # ---------------------------------------------------
+
     db_user = users_collection.find_one({
         "$or": [{"email": email}, {"google_id": google_id}]
     })
 
+    # ---------------------------------------------------
+    # IF USER EXISTS
+    # ---------------------------------------------------
+
     if db_user:
-        # Existing user — merge google_id if missing (local user signing in with Google)
+
         if not db_user.get("google_id"):
             users_collection.update_one(
                 {"_id": db_user["_id"]},
-                {"$set": {"google_id": google_id, "avatar": picture}}
+                {
+                    "$set": {
+                        "google_id": google_id,
+                        "avatar": picture,
+                        "provider": "google"
+                    }
+                }
             )
+
+    # ---------------------------------------------------
+    # CREATE NEW USER
+    # ---------------------------------------------------
+
     else:
-        # New user — create account
+
         result = users_collection.insert_one({
             "name": name,
             "email": email,
             "password": None,
             "provider": "google",
             "google_id": google_id,
-            "avatar": picture,
+            "avatar": picture
         })
+
         db_user = users_collection.find_one({"_id": result.inserted_id})
+
+    # ---------------------------------------------------
+    # CREATE JWT TOKEN
+    # ---------------------------------------------------
 
     token = create_token({
         "user_id": str(db_user["_id"]),
@@ -115,14 +162,12 @@ def google_auth(payload: GoogleAuthRequest):
     return {
         "access_token": token,
         "token_type": "bearer",
+        "token": token,
+        "name": db_user.get("name", ""),
         "user": {
             "id": str(db_user["_id"]),
             "email": db_user["email"],
             "name": db_user.get("name", ""),
-            "avatar": db_user.get("avatar", ""),
-        },
-        # Keep backward compat with existing frontend token storage
-        "token": token,
-        "name": db_user.get("name", ""),
+            "avatar": db_user.get("avatar", "")
+        }
     }
-

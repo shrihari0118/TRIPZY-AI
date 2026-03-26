@@ -1,34 +1,54 @@
 import { Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { BudgetPlan, PlanCustomization } from '../data/budgetPlans';
+import { useEffect, useState } from 'react';
+import type { BudgetTier, TripPlanResult } from '../api/budgetPlanner';
 import BudgetAllocationSliders, {
   AllocationRatios,
   DEFAULT_RATIOS,
 } from './BudgetAllocationSliders';
 
+/* ── Types ──────────────────────────────────────────────────────────────── */
+
+export type PersonalizeSaveValues = {
+  activities: string[];
+  ratios?: AllocationRatios;
+};
+
 type PersonalizeModalProps = {
   isOpen: boolean;
-  plan: BudgetPlan | null;
+  tier: BudgetTier | null;
+  title: string;
+  result: TripPlanResult | null;
   onClose: () => void;
-  onSave: (values: PlanCustomization) => void;
+  onSave: (values: PersonalizeSaveValues) => void;
 };
+
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+
+function formatINR(n: number): string {
+  return `₹${Math.round(n).toLocaleString('en-IN')}`;
+}
+
+function buildCostRange(result: TripPlanResult | null): string {
+  const min = result?.total_budget?.min ?? 0;
+  const max = result?.total_budget?.max ?? 0;
+  return `${formatINR(min)} - ${formatINR(max)}`;
+}
+
+/* ── Component ───────────────────────────────────────────────────────────── */
 
 export default function PersonalizeModal({
   isOpen,
-  plan,
+  tier,
+  title,
+  result,
   onClose,
   onSave,
 }: PersonalizeModalProps) {
-  const [transport, setTransport] = useState('');
-  const [accommodation, setAccommodation] = useState('');
-  const [food, setFood] = useState('');
   const [activities, setActivities] = useState<string[]>([]);
   const [activityInput, setActivityInput] = useState('');
-
-  // ── Ratio slider state ─────────────────────────────────────────────────────
   const [ratios, setRatios] = useState<AllocationRatios | null>(null);
 
-  // ── Body scroll-lock ────────────────────────────────────────────────────
+  // ── Body scroll-lock ──────────────────────────────────────────────────
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -40,32 +60,23 @@ export default function PersonalizeModal({
     };
   }, [isOpen]);
 
+  // ── Sync state when modal opens ───────────────────────────────────────
   useEffect(() => {
-    if (!plan) {
-      return;
-    }
-    setTransport(plan.transport);
-    setAccommodation(plan.accommodation);
-    setFood(plan.food);
-    setActivities(plan.activities);
+    if (!result) return;
+    const combined = [
+      ...(result.activities ?? []),
+      ...(result.entertainment ?? []),
+    ];
+    setActivities(combined);
     setActivityInput('');
-    // Reset ratios to AI defaults for this tier each time the modal opens
     setRatios(null);
-  }, [plan]);
+  }, [result]);
 
-  const activityOptions = useMemo(() => {
-    if (!plan) {
-      return [];
-    }
-    return Array.from(new Set([...plan.options.activities, ...activities]));
-  }, [plan, activities]);
-
-  if (!isOpen || !plan) {
+  if (!isOpen || !result || !tier) {
     return null;
   }
 
-  // Effective ratios: user override or tier default
-  const effectiveRatios: AllocationRatios = ratios ?? DEFAULT_RATIOS[plan.id];
+  const effectiveRatios: AllocationRatios = ratios ?? DEFAULT_RATIOS[tier];
 
   const toggleActivity = (activity: string) => {
     setActivities((prev) =>
@@ -77,9 +88,7 @@ export default function PersonalizeModal({
 
   const handleAddActivity = () => {
     const trimmed = activityInput.trim();
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
     setActivities((prev) =>
       prev.includes(trimmed) ? prev : [...prev, trimmed]
     );
@@ -89,13 +98,14 @@ export default function PersonalizeModal({
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 backdrop-blur-sm">
       <div className="relative flex h-full w-full max-w-md flex-col bg-[var(--panel)] shadow-2xl animate-slide-fade">
+        {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-5">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
               Personalize Plan
             </p>
             <h2 className="text-lg font-semibold text-[var(--ink)]">
-              {plan.title}
+              {title}
             </h2>
           </div>
           <button
@@ -106,71 +116,54 @@ export default function PersonalizeModal({
           </button>
         </div>
 
+        {/* ── Body ────────────────────────────────────────────────────── */}
         <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 py-6">
+
+          {/* Transport (read-only from API) */}
           <div className="space-y-2 text-sm">
             <label className="font-semibold text-[var(--ink)]">
-              Transport Type
+              Transport
             </label>
-            <select
-              value={transport}
-              onChange={(event) => setTransport(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-            >
-              {plan.options.transport.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--muted)]">
+              {result.transport?.mode ?? ''} – {result.transport?.name ?? ''}
+            </div>
           </div>
 
+          {/* Hotel (read-only from API) */}
           <div className="space-y-2 text-sm">
             <label className="font-semibold text-[var(--ink)]">
-              Hotel Type
+              Hotel
             </label>
-            <select
-              value={accommodation}
-              onChange={(event) => setAccommodation(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-            >
-              {plan.options.accommodation.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--muted)]">
+              {result.hotel?.name ?? ''}{' '}
+              {result.hotel?.type ? `(${result.hotel.type})` : ''}
+            </div>
           </div>
 
+          {/* Food (read-only from API) */}
           <div className="space-y-2 text-sm">
             <label className="font-semibold text-[var(--ink)]">
-              Food Preference
+              Food
             </label>
-            <select
-              value={food}
-              onChange={(event) => setFood(event.target.value)}
-              className="w-full rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
-            >
-              {plan.options.food.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-3 text-sm text-[var(--muted)]">
+              {(result.food ?? []).join(', ') || '—'}
+            </div>
           </div>
 
+          {/* Activities & Entertainment (editable) */}
           <div className="space-y-3 text-sm">
             <label className="font-semibold text-[var(--ink)]">
-              Activities &amp; Experiences
+              Activities &amp; Entertainment
             </label>
             <div className="grid gap-2">
-              {activityOptions.map((activity) => (
+              {activities.map((activity) => (
                 <label
                   key={activity}
                   className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-2"
                 >
                   <input
                     type="checkbox"
-                    checked={activities.includes(activity)}
+                    checked={true}
                     onChange={() => toggleActivity(activity)}
                     className="h-4 w-4 accent-[var(--accent)]"
                   />
@@ -184,7 +177,10 @@ export default function PersonalizeModal({
                 type="text"
                 placeholder="Add a custom activity"
                 value={activityInput}
-                onChange={(event) => setActivityInput(event.target.value)}
+                onChange={(e) => setActivityInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddActivity();
+                }}
                 className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--panel-muted)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)]"
               />
               <button
@@ -194,31 +190,18 @@ export default function PersonalizeModal({
                 <Plus className="h-4 w-4" />
               </button>
             </div>
-
-            {activities.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {activities.map((activity) => (
-                  <button
-                    key={activity}
-                    onClick={() => toggleActivity(activity)}
-                    className="rounded-full border border-[var(--border)] bg-[var(--panel)] px-3 py-1 text-xs font-medium text-[var(--muted)] transition hover:text-[var(--ink)]"
-                  >
-                    {activity} x
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
-          {/* ── Budget Allocation Sliders ──────────────────────────────────── */}
+          {/* ── Budget Allocation Sliders ─────────────────────────────── */}
           <BudgetAllocationSliders
-            tier={plan.id}
-            costRange={plan.costRange}
+            tier={tier}
+            costRange={buildCostRange(result)}
             ratios={effectiveRatios}
             onChange={(newRatios) => setRatios(newRatios)}
           />
         </div>
 
+        {/* ── Footer ──────────────────────────────────────────────────── */}
         <div className="border-t border-[var(--border)] px-6 py-4">
           <div className="flex gap-3">
             <button
@@ -230,11 +213,7 @@ export default function PersonalizeModal({
             <button
               onClick={() =>
                 onSave({
-                  transport,
-                  accommodation,
-                  food,
                   activities,
-                  // Only persist ratios when the user actually changed them
                   ratios: ratios ?? undefined,
                 })
               }

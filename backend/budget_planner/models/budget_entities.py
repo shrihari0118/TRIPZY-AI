@@ -24,10 +24,22 @@ class PlanOptions(BaseModel):
     Available options shown in the frontend PersonalizeModal.
     Mirrors: plan.options.{transport, accommodation, food, activities}
     """
-    transport:     list[str] = Field(..., min_length=1)
+    transport:     list[TransportOption] = Field(..., min_length=1)
     accommodation: list[str] = Field(..., min_length=1)
     food:          list[str] = Field(..., min_length=1)
     activities:    list[str] = Field(..., min_length=1)
+
+
+class TransportOption(BaseModel):
+    """
+    Structured transport payload. Flight entries can include schedule and price.
+    """
+    type: str
+    name: str
+    route: str = ""
+    departure: str = ""
+    arrival: str = ""
+    price: int = 0
 
 
 class BudgetPlan(BaseModel):
@@ -40,7 +52,7 @@ class BudgetPlan(BaseModel):
     title:         str
     description:   str
     costRange:     str          # e.g. "₹9,000 - ₹14,000"  (total group cost)
-    transport:     str          # Default/recommended transport (shown on card)
+    transport:     TransportOption  # Default/recommended transport (shown on card)
     accommodation: str          # Default/recommended accommodation
     food:          str          # Default/recommended food style
     spots:         str          # Tourist spots summary string (not an array)
