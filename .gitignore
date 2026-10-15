@@ -1,4 +1,20 @@
-logs
+# 🔒 Environment variables
+.env
+.env.*
+backend/.env
+
+# 🧠 Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 📦 Node
+node_modules/
+dist/
+dist-ssr/
+
+# 📝 Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -6,21 +22,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
+# 💻 IDE
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
+
+# 🖥 OS
 .DS_Store
+Thumbs.db
+
+# 🧾 Misc
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-.env
-venv/
-.venv
-/backend/.env
+*.local

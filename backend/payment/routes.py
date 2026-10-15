@@ -6,6 +6,7 @@ from payment import controller as payment_controller
 from payment.models import (
     CreateOrderRequest,
     CreateOrderResponse,
+    CreateTransportOrderRequest,
     VerifyPaymentRequest,
     VerifyPaymentResponse,
 )
@@ -47,6 +48,38 @@ def create_order(payload: CreateOrderRequest) -> CreateOrderResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/verify", response_model=VerifyPaymentResponse)
+@router.post("/create-transport-order", response_model=CreateOrderResponse)
+def create_transport_order(payload: CreateTransportOrderRequest) -> CreateOrderResponse:
+    request_payload = _model_dump(payload)
+    logger.info(
+        "API HIT POST /api/payment/create-transport-order payload=%s",
+        request_payload,
+    )
+
+    try:
+        response = payment_controller.handle_create_transport_order(payload)
+        logger.info(
+            "CREATE TRANSPORT ORDER API response payload=%s",
+            _model_dump(response),
+        )
+        return response
+    except HTTPException as exc:
+        logger.error(
+            "CREATE TRANSPORT ORDER ERROR status=%s detail=%s",
+            exc.status_code,
+            exc.detail,
+        )
+        raise
+    except Exception as exc:
+        logger.exception("CREATE TRANSPORT ORDER ERROR: %s", str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/verify-payment", response_model=VerifyPaymentResponse)
 def verify_payment(request: VerifyPaymentRequest) -> VerifyPaymentResponse:
+    return payment_controller.handle_verify_payment(request)
+
+
+@router.post("/verify", response_model=VerifyPaymentResponse)
+def verify_payment_legacy(request: VerifyPaymentRequest) -> VerifyPaymentResponse:
     return payment_controller.handle_verify_payment(request)

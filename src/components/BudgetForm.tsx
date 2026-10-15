@@ -22,7 +22,7 @@ type BudgetFormProps = {
   options: BudgetOption[];
   onFieldChange: (field: keyof BudgetFormValues, value: string) => void;
   onBudgetSelect: (value: BudgetPlanId) => void;
-  onGenerate: () => void;
+  onGenerate?: () => void;
   isLoading?: boolean;
   /** Controlled max-budget value from the slider (optional for backward compat) */
   maxBudget?: number;
@@ -40,12 +40,10 @@ export default function BudgetForm({
   options,
   onFieldChange,
   onBudgetSelect,
-  onGenerate,
   isLoading = false,
   maxBudget,
   onMaxBudgetChange,
   sliderError = null,
-  generateDisabled = false,
   dynamicTierLimits = null,
 }: BudgetFormProps) {
   // Dynamic limits from API; safe inline fallback if parent hasn't loaded yet
@@ -171,15 +169,6 @@ export default function BudgetForm({
             error={sliderError}
           />
         )}
-
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={isLoading || generateDisabled}
-          className="w-full rounded-2xl bg-[var(--ink)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
-        >
-          {isLoading ? 'Generating…' : 'Generate Trip Plan'}
-        </button>
       </div>
     </section>
   );

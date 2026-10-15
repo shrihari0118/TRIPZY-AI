@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import BudgetCard from '../components/BudgetCard';
 import { type BudgetFormValues } from '../components/BudgetForm';
 import PersonalizeModal, { type PersonalizeSaveValues } from '../components/PersonalizeModal';
 import {
+  buildFallbackBudgetPlan,
   generateBudgetPlan,
   type BudgetGenerateResponse,
   type BudgetTier,
@@ -43,6 +44,11 @@ export default function BudgetResults() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [personalizeTier, setPersonalizeTier] = useState<BudgetTier | null>(null);
 
+  // FIX: Synchronous lock ref prevents duplicate API calls from rapid
+  // Refresh button clicks. Same rationale as BudgetPlanner — React state
+  // guards (isLoading) are asynchronous and can be bypassed by rapid clicks.
+  const isRequestingRef = useRef(false);
+
   const values = navigationState?.values ?? null;
   const adults = navigationState?.adults ?? 1;
   const children = navigationState?.children ?? 0;
@@ -50,6 +56,10 @@ export default function BudgetResults() {
 
   const handleRefresh = async () => {
     if (!values || isLoading) return;
+
+    // FIX: Ref-based lock prevents concurrent refresh requests.
+    if (isRequestingRef.current) return;
+    isRequestingRef.current = true;
 
     setIsLoading(true);
     setErrorMsg(null);
@@ -68,9 +78,30 @@ export default function BudgetResults() {
       setPlans({ budget: results[0], moderate: results[1], luxury: results[2] });
     } catch (err) {
       console.error('[BudgetResults] refreshBudgetPlan failed:', err);
-      setErrorMsg('Refresh failed. Showing the latest itinerary already loaded.');
+      setPlans({
+        budget: buildFallbackBudgetPlan({
+          ...values,
+          budgetRange: 'budget',
+          adults: Number(adults),
+          children: Number(children),
+        }),
+        moderate: buildFallbackBudgetPlan({
+          ...values,
+          budgetRange: 'moderate',
+          adults: Number(adults),
+          children: Number(children),
+        }),
+        luxury: buildFallbackBudgetPlan({
+          ...values,
+          budgetRange: 'luxury',
+          adults: Number(adults),
+          children: Number(children),
+        }),
+      });
+      setErrorMsg(null);
     } finally {
       setIsLoading(false);
+      isRequestingRef.current = false;
     }
   };
 

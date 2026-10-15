@@ -70,6 +70,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger("tripzy")
 
+FALLBACK_HOTEL_NAMES = {
+    "budget": "City Comfort Inn",
+    "moderate": "Central Vista Hotel",
+    "luxury": "Grand Horizon Suites",
+}
+FALLBACK_FOOD_BY_TIER = {
+    "budget": ["Local breakfast cafe", "Popular street-food market", "Family restaurant"],
+    "moderate": ["Signature brunch cafe", "Regional speciality restaurant", "Rooftop dinner spot"],
+    "luxury": ["Fine-dining tasting room", "Chef's table restaurant", "Premium lounge dinner"],
+}
+FALLBACK_BASE_DAILY_COST = {
+    "budget": 2200,
+    "moderate": 4800,
+    "luxury": 10500,
+}
+
 
 class GeminiCallFailed(Exception):
     """All retry attempts exhausted for Gemini models."""
@@ -725,6 +741,15 @@ def _call_gemini_single(prompt: str, model_url: str, model_name: str) -> str:
             response.raise_for_status()
             response_data = response.json()
             text = response_data["candidates"][0]["content"]["parts"][0]["text"]
+            if not isinstance(text, str) or not text.strip():
+                wait = RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)]
+                last_error = "Empty Gemini response"
+                logger.warning(
+                    "[RETRY] Attempt %d/%d for %s - empty response, waiting %ds",
+                    attempt + 1, RETRY_MAX_ATTEMPTS, model_name, wait,
+                )
+                time.sleep(wait)
+                continue
             logger.info("[GEMINI] Success from %s on attempt %d", model_name, attempt + 1)
             return text
 
@@ -747,10 +772,15 @@ def _call_gemini_single(prompt: str, model_url: str, model_name: str) -> str:
             logger.error("[GEMINI] Non-retryable error from %s: %s", model_name, last_error)
             break
 
-        except (KeyError, IndexError, TypeError) as exc:
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            wait = RETRY_BACKOFF_SECONDS[min(attempt, len(RETRY_BACKOFF_SECONDS) - 1)]
             last_error = f"Response parse error: {exc}"
-            logger.error("[GEMINI] Bad response structure from %s: %s", model_name, last_error)
-            break
+            logger.warning(
+                "[RETRY] Attempt %d/%d for %s - %s, waiting %ds",
+                attempt + 1, RETRY_MAX_ATTEMPTS, model_name, last_error, wait,
+            )
+            time.sleep(wait)
+            continue
 
     raise GeminiCallFailed(
         f"All {RETRY_MAX_ATTEMPTS} retries exhausted for {model_name}: {last_error}"
@@ -812,6 +842,231 @@ def generate_itinerary(
     return result, model_used
 
 
+def generate_fallback_plan(trip: TripRequest, distance_km: float) -> dict[str, Any]:
+    travellers = max(1, trip.adults + trip.children)
+    mode = fallback_transport_mode(distance_km)
+    total_budget = fallback_total_budget(trip)
+
+    result = {
+        "total_budget": total_budget,
+        "transportMode": mode,
+        "transport": {
+            "mode": mode.title(),
+            "name": fallback_transport_name(mode, trip),
+        },
+        "seats": fallback_seats(travellers) if mode == "bus" else [],
+        "seatLayout": {"rows": 3, "cols": 4} if mode == "bus" else {"rows": 0, "cols": 0},
+        "fareOptions": fallback_fare_options(mode, travellers) if mode != "bus" else [],
+        "boardingPoints": [
+            {
+                "time": "08:00 AM",
+                "name": f"{trip.source} Central Boarding Point",
+                "description": "Report 20 minutes early for a smooth departure.",
+            }
+        ],
+        "intermediateStops": [
+            {
+                "time": "12:30 PM",
+                "name": "Mid-route Rest Stop",
+                "description": "Short refreshment break and local sightseeing window.",
+            }
+        ],
+        "droppingPoints": [
+            {
+                "time": "06:00 PM",
+                "name": f"{trip.destination} Arrival Point",
+                "description": "Arrival near the main city center for easy hotel transfer.",
+            }
+        ],
+        "hotel": {
+            "name": f"{trip.destination} {FALLBACK_HOTEL_NAMES.get(trip.budget_type, 'Travel Stay')}",
+            "type": trip.budget_type,
+        },
+        "food": FALLBACK_FOOD_BY_TIER.get(
+            trip.budget_type,
+            ["Local breakfast cafe", "Regional restaurant", "Evening food court"],
+        ),
+        "tourist_places": [
+            f"{trip.destination} Old Town",
+            f"{trip.destination} City Museum",
+            f"{trip.destination} Riverside Walk",
+        ],
+        "activities": [
+            "Check in to the hotel",
+            "Visit nearby attractions",
+            "Try local food",
+        ],
+        "entertainment": [
+            "Evening cultural walk",
+            "Shopping and leisure time",
+            "Relaxed night market visit",
+        ],
+    }
+
+    return validate_result(result)
+
+
+def generate_plan_safe(
+    trip: TripRequest,
+    distance_km: float,
+) -> tuple[dict[str, Any], str, str, bool]:
+    try:
+        result, model_used = generate_itinerary(trip, distance_km)
+        if result is None:
+            raise ValueError("Gemini returned no itinerary content.")
+
+        status = "fallback" if model_used == "gemini-2.0-flash" else "success"
+        message = (
+            "Trip plan generated successfully."
+            if status == "success"
+            else "Trip plan generated using fallback model."
+        )
+        return result, status, message, True
+    except Exception as exc:
+        logger.exception("[FALLBACK] Gemini itinerary generation failed: %s", exc)
+        fallback_result = generate_fallback_plan(trip, distance_km)
+        return (
+            fallback_result,
+            "fallback",
+            "Gemini was unavailable. A reliable fallback itinerary was generated.",
+            False,
+        )
+
+
+def calculate_trip_total_amount(result: dict[str, Any]) -> float:
+    total_budget = result.get("total_budget", {})
+    if not isinstance(total_budget, dict):
+        return 0.0
+
+    minimum = parse_amount(total_budget.get("min", 0), "total_budget", "min")
+    maximum = max(minimum, parse_amount(total_budget.get("max", minimum), "total_budget", "max"))
+
+    if minimum > 0 and maximum > 0:
+        return round((minimum + maximum) / 2)
+
+    return round(max(minimum, maximum, 0))
+
+
+def fallback_total_budget(trip: TripRequest) -> dict[str, float]:
+    base_daily = FALLBACK_BASE_DAILY_COST.get(trip.budget_type, FALLBACK_BASE_DAILY_COST["moderate"])
+    adult_cost = base_daily * max(1, trip.days) * max(1, trip.adults)
+    child_cost = round(base_daily * 0.6) * max(0, trip.days) * max(0, trip.children)
+    base_cost = adult_cost + child_cost
+    minimum = max(1500, round(base_cost * 0.9, -2))
+    maximum = max(minimum + 500, round(base_cost * 1.15, -2))
+    return {
+        "min": float(minimum),
+        "max": float(maximum),
+    }
+
+
+def fallback_transport_mode(distance_km: float) -> str:
+    if distance_km >= 900:
+        return "flight"
+    if distance_km >= 300:
+        return "train"
+    return "bus"
+
+
+def fallback_transport_name(mode: str, trip: TripRequest) -> str:
+    if mode == "flight":
+        return f"{trip.source[:3].upper()}-{trip.destination[:3].upper()} SkyConnect"
+    if mode == "train":
+        return f"{trip.source} {trip.destination} Express"
+    return f"{trip.source} {trip.destination} Intercity Coach"
+
+
+def fallback_seats(travellers: int) -> list[dict[str, Any]]:
+    seats: list[dict[str, Any]] = []
+    for index in range(max(8, travellers + 4)):
+        row = (index // 4) + 1
+        col = (index % 4) + 1
+        seats.append(
+            {
+                "id": f"S{index + 1}",
+                "row": row,
+                "col": col,
+                "type": "semi-sleeper" if col in {1, 2} else "seater",
+                "price": float(850 + (index % 3) * 150),
+                "isBooked": index in {2, 5},
+            }
+        )
+    return seats
+
+
+def fallback_fare_options(mode: str, travellers: int) -> list[dict[str, Any]]:
+    base_price = max(1400, 1800 + travellers * 150)
+    if mode == "flight":
+        return [
+            {"type": "Economy", "price": float(base_price), "availability": "Available"},
+            {
+                "type": "Premium Economy",
+                "price": float(base_price + 2200),
+                "availability": "Few Left",
+            },
+            {
+                "type": "Business",
+                "price": float(base_price + 5200),
+                "availability": "Available",
+            },
+        ]
+
+    return [
+        {"type": "Sleeper", "price": float(base_price), "availability": "Available"},
+        {"type": "3A", "price": float(base_price + 900), "availability": "Few Left"},
+        {"type": "2A", "price": float(base_price + 1800), "availability": "Available"},
+    ]
+
+
+def build_initial_payment_state(result: dict[str, Any], created_at: str) -> dict[str, Any]:
+    total_amount = calculate_trip_total_amount(result)
+    return {
+        "status": "pending",
+        "totalAmount": total_amount,
+        "transportAmount": 0,
+        "paid": {
+            "transport": False,
+            "full": False,
+        },
+        "transportOrder": {
+            "status": "pending",
+            "updated_at": created_at,
+        },
+        "fullOrder": {
+            "status": "pending",
+            "updated_at": created_at,
+        },
+        "updated_at": created_at,
+    }
+
+
+def build_trip_response_data(
+    *,
+    trip_id: str,
+    user_id: str | None,
+    trip: TripRequest,
+    distance_km: float,
+    result: dict[str, Any],
+    created_at: str,
+) -> dict[str, Any]:
+    return {
+        "trip_id": trip_id,
+        "user_id": user_id,
+        "source": trip.source,
+        "destination": trip.destination,
+        "days": trip.days,
+        "adults": trip.adults,
+        "children": trip.children,
+        "budget_type": trip.budget_type,
+        "distance_km": distance_km,
+        "result": result,
+        "created_at": created_at,
+        "payment": build_initial_payment_state(result, created_at),
+        "payment_status": "pending",
+        "paid_at": None,
+    }
+
+
 def save_trip_history(
     user_id: str | None,
     trip: TripRequest,
@@ -828,10 +1083,7 @@ def save_trip_history(
         "budget_type": trip.budget_type,
         "result": result,
         "created_at": created_at,
-        "payment": {
-            "status": "pending",
-            "updated_at": created_at,
-        },
+        "payment": build_initial_payment_state(result, created_at),
     }
 
     try:
@@ -896,87 +1148,50 @@ async def generate_trip(
         return {
             "status": "success",
             "message": "Trip plan retrieved from cache.",
-            "data": {
-                "trip_id": trip_id,
-                "user_id": user_id,
-                "source": cleaned_trip.source,
-                "destination": cleaned_trip.destination,
-                "days": cleaned_trip.days,
-                "adults": cleaned_trip.adults,
-                "children": cleaned_trip.children,
-                "budget_type": cleaned_trip.budget_type,
-                "distance_km": distance_km,
-                "result": cached_result,
-                "created_at": created_at,
-                "payment_status": "pending",
-                "paid_at": None,
-            },
+            "data": build_trip_response_data(
+                trip_id=trip_id,
+                user_id=user_id,
+                trip=cleaned_trip,
+                distance_km=distance_km,
+                result=cached_result,
+                created_at=created_at,
+            ),
         }
 
-    # --- Gemini call (semaphore-controlled) ---
-    try:
-        start_time = time.time()
-        logger.info("[QUEUE] Waiting for semaphore...")
+    # --- Gemini call with guaranteed fallback (semaphore-controlled) ---
+    start_time = time.time()
+    logger.info("[QUEUE] Waiting for semaphore...")
 
-        async with _gemini_semaphore:
-            queue_wait = time.time() - start_time
-            if queue_wait > 0.01:
-                logger.info("[QUEUE] Waited %.2fs for semaphore", queue_wait)
+    async with _gemini_semaphore:
+        queue_wait = time.time() - start_time
+        if queue_wait > 0.01:
+            logger.info("[QUEUE] Waited %.2fs for semaphore", queue_wait)
 
-            result, model_used = await asyncio.to_thread(
-                generate_itinerary, cleaned_trip, distance_km,
-            )
+        result, status, message, should_cache = await asyncio.to_thread(
+            generate_plan_safe, cleaned_trip, distance_km,
+        )
 
-        elapsed = time.time() - start_time
+    elapsed = time.time() - start_time
 
-    except ValueError as exc:
-        logger.error("[FAILED] Response validation failed: %s", exc)
-        return {
-            "status": "retry_failed",
-            "message": f"Failed to generate valid trip plan: {exc}",
-            "data": None,
-        }
-
-    if result is None:
-        return {
-            "status": "retry_failed",
-            "message": "All Gemini API attempts failed",
-            "data": None,
-        }
-
-    logger.info("[SUCCESS] Trip generated via %s in %.1fs", model_used, elapsed)
-
-    # --- Determine status ---
-    status = "fallback" if model_used == "gemini-2.0-flash" else "success"
-    message = (
-        "Trip plan generated successfully."
-        if status == "success"
-        else "Trip plan generated using fallback model."
-    )
+    logger.info("[SUCCESS] Trip generated with status=%s in %.1fs", status, elapsed)
 
     created_at = datetime.now(timezone.utc).isoformat()
     trip_id = await asyncio.to_thread(
         save_trip_history, user_id, cleaned_trip, result, created_at,
     )
 
-    response_data = {
-        "trip_id": trip_id,
-        "user_id": user_id,
-        "source": cleaned_trip.source,
-        "destination": cleaned_trip.destination,
-        "days": cleaned_trip.days,
-        "adults": cleaned_trip.adults,
-        "children": cleaned_trip.children,
-        "budget_type": cleaned_trip.budget_type,
-        "distance_km": distance_km,
-        "result": result,
-        "created_at": created_at,
-        "payment_status": "pending",
-        "paid_at": None,
-    }
+    response_data = build_trip_response_data(
+        trip_id=trip_id,
+        user_id=user_id,
+        trip=cleaned_trip,
+        distance_km=distance_km,
+        result=result,
+        created_at=created_at,
+    )
 
     # --- Cache store ---
-    _set_cache(cache_key, result)
+    if should_cache:
+        _set_cache(cache_key, result)
 
     return {
         "status": status,

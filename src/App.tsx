@@ -9,6 +9,7 @@ import BudgetPlanner from "./pages/BudgetPlanner";
 import BudgetResults from "./pages/BudgetResults";
 import TravelGuide from "./pages/TravelGuide";
 import Profile from "./pages/Profile";
+import TransportPaymentPage from "./pages/TransportPaymentPage";
 import TransportPage from "./pages/itinerary/TransportPage";
 import AccommodationPage from "./pages/itinerary/AccommodationPage";
 import FoodPage from "./pages/itinerary/FoodPage";
@@ -43,6 +44,7 @@ function AnimatedRoutes() {
           <Route path="/budget" element={<BudgetPlanner />} />
           <Route path="/budget-results" element={<BudgetResults />} />
           <Route path="/itinerary/transport" element={<TransportPage />} />
+          <Route path="/transport-payment" element={<TransportPaymentPage />} />
           <Route path="/itinerary/accommodation" element={<AccommodationPage />} />
           <Route path="/itinerary/food" element={<FoodPage />} />
           <Route path="/itinerary/tourist" element={<TouristPage />} />

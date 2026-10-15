@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { RefreshCw, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BudgetForm, { type BudgetFormValues } from '../components/BudgetForm';
 import {
+  buildFallbackBudgetPlan,
   generateBudgetPlan,
   type BudgetTier,
 } from '../api/budgetPlanner';
@@ -52,6 +53,13 @@ export default function BudgetPlanner() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // FIX: Synchronous lock ref prevents duplicate API calls.
+  // React state updates (setIsLoading) are batched and asynchronous,
+  // so two rapid clicks can both pass `if (isLoading) return` before
+  // the state update propagates. A ref is checked synchronously,
+  // guaranteeing the second call is blocked immediately.
+  const isRequestingRef = useRef(false);
+
   const handleFieldChange = (field: keyof BudgetFormValues, value: string) => {
     setValues((prev) => ({ ...prev, [field]: value }));
   };
@@ -65,8 +73,8 @@ export default function BudgetPlanner() {
   };
 
   const handleGenerate = useCallback(async () => {
-    if (isLoading) return;
-
+    // Validate inputs before acquiring the lock — validation failures
+    // must not leave the ref locked, or the button becomes permanently disabled.
     if (!values.startPlace.trim() || !values.destinationPlace.trim()) {
       setErrorMsg('Please enter both a start place and a destination.');
       return;
@@ -79,6 +87,14 @@ export default function BudgetPlanner() {
       setErrorMsg('End date must be after start date.');
       return;
     }
+
+    // FIX: Use ref-based lock instead of state-based guard.
+    // This prevents duplicate /generate-trip calls from rapid clicks,
+    // re-renders, or React Strict Mode double-invocations.
+    // React state updates (setIsLoading) are batched and asynchronous,
+    // so a ref is checked synchronously to block the second call immediately.
+    if (isRequestingRef.current) return;
+    isRequestingRef.current = true;
 
     setIsLoading(true);
     setErrorMsg(null);
@@ -106,11 +122,36 @@ export default function BudgetPlanner() {
       navigate('/budget-results', { state: navigationState });
     } catch (err) {
       console.error('[BudgetPlanner] generateBudgetPlan failed:', err);
-      setErrorMsg('Could not generate the itinerary right now.');
+      const fallbackResults = TIERS.map((tier) =>
+        buildFallbackBudgetPlan({
+          ...values,
+          budgetRange: tier,
+          adults: Number(adults),
+          children: Number(children),
+        })
+      );
+
+      navigate('/budget-results', {
+        state: {
+          values: { ...values },
+          adults: Number(adults),
+          children: Number(children),
+          plans: {
+            budget: fallbackResults[0],
+            moderate: fallbackResults[1],
+            luxury: fallbackResults[2],
+          },
+          hasGenerated: true,
+        } satisfies BudgetResultsNavigationState,
+      });
     } finally {
       setIsLoading(false);
+      isRequestingRef.current = false;
     }
-  }, [adults, children, isLoading, navigate, values]);
+    // FIX: Removed `isLoading` from deps — the ref handles the guard now.
+    // Including isLoading caused unnecessary callback re-creation on every
+    // loading state change, which could re-trigger downstream effects.
+  }, [adults, children, navigate, values]);
 
   const totalTravellers = adults + children;
 
@@ -124,7 +165,6 @@ export default function BudgetPlanner() {
           onBudgetSelect={(budgetRange) =>
             setValues((prev) => ({ ...prev, budgetRange }))
           }
-          onGenerate={handleGenerate}
           isLoading={isLoading}
         />
 
@@ -204,6 +244,15 @@ export default function BudgetPlanner() {
         {errorMsg && (
           <p className="px-1 text-xs text-red-500">{errorMsg}</p>
         )}
+
+        <button
+          type="button"
+          onClick={handleGenerate}
+          disabled={isLoading}
+          className="w-full rounded-2xl bg-[var(--ink)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
+        >
+          {isLoading ? 'Generating…' : 'Generate Trip Plan'}
+        </button>
 
         {isLoading && (
           <section className="rounded-3xl border border-dashed border-[var(--border)] bg-[var(--panel-muted)] p-8 text-center text-sm text-[var(--muted)]">
